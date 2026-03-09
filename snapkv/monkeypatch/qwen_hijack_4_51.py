@@ -27,6 +27,18 @@ def _get_cache_length(past_key_value: Cache, layer_idx: int) -> int:
         return past_key_value.get_seq_length()
 
 
+def _get_max_cache_length(past_key_value: Cache):
+    if hasattr(past_key_value, "get_max_length"):
+        return past_key_value.get_max_length()
+    if hasattr(past_key_value, "get_max_cache_shape"):
+        max_cache_shape = past_key_value.get_max_cache_shape()
+        if isinstance(max_cache_shape, int):
+            return max_cache_shape
+        if isinstance(max_cache_shape, (tuple, list)) and len(max_cache_shape) > 0:
+            return max_cache_shape[-1]
+    return None
+
+
 def _update_past_key_values(
     self,
     key_states: torch.Tensor,
@@ -202,7 +214,7 @@ def prepare_inputs_for_generation_qwen(
         if isinstance(past_key_values, Cache):
             cache_length = _get_cache_length(past_key_values, 0)
             past_length = cache_length
-            max_cache_length = past_key_values.get_max_length()
+            max_cache_length = _get_max_cache_length(past_key_values)
         else:
             cache_length = past_length = self.model.layers[0].self_attn.kv_seq_len
             max_cache_length = None
