@@ -2,6 +2,10 @@ from importlib.metadata import version
 import warnings
 import transformers
 from snapkv.monkeypatch.llama_hijack_4_37 import llama_flash_attn2_forward as llama_flash_attn2_forward_4_37, prepare_inputs_for_generation_llama as prepare_inputs_for_generation_llama_4_37
+from snapkv.monkeypatch.llama_hijack_4_51 import (
+    prepare_inputs_for_generation_llama_4_51,
+    replace_llama_attention_4_51,
+)
 from snapkv.monkeypatch.mistral_hijack_4_37 import mistral_flash_attn2_forward as mistral_flash_attn2_forward_4_37, prepare_inputs_for_generation_mistral as prepare_inputs_for_generation_mistral_4_37
 from snapkv.monkeypatch.mixtral_hijack_4_37 import mixtral_flash_attn2_forward as mixtral_flash_attn2_forward_4_37, prepare_inputs_for_generation_mixtral as prepare_inputs_for_generation_mixtral_4_37
 from snapkv.monkeypatch.qwen_hijack_4_51 import (
@@ -29,6 +33,19 @@ def replace_llama():
         warnings.warn(f"Transformers version {transformers_version} might not be compatible with SnapKV. SnapKV is tested with Transformers version {version_list}.")
     transformers.models.llama.modeling_llama.LlamaForCausalLM.prepare_inputs_for_generation = prepare_inputs_for_generation_llama_4_37
     transformers.models.llama.modeling_llama.LlamaFlashAttention2.forward = llama_flash_attn2_forward_4_37
+
+def replace_llama_4_51():
+    transformers_version = check_version()
+    version_list = ['4.51']
+    warning_flag = True
+    for version in version_list:
+        if version in transformers_version:
+            warning_flag = False
+            break
+    if warning_flag:
+        warnings.warn(f"Transformers version {transformers_version} might not be compatible with SnapKV Llama support. SnapKV Llama support is tested with Transformers version {version_list}.")
+    transformers.models.llama.modeling_llama.LlamaForCausalLM.prepare_inputs_for_generation = prepare_inputs_for_generation_llama_4_51
+    replace_llama_attention_4_51()
 
 def replace_mistral():
     transformers_version = check_version()
