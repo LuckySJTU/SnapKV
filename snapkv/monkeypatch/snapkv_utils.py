@@ -42,7 +42,17 @@ class SnapKVCluster():
         if q_len < self.max_capacity_prompt:
             return key_states, value_states
         else:
-            attn_weights = torch.matmul(query_states[..., -self.window_size:, :], key_states.transpose(2, 3)) / math.sqrt(head_dim)
+            if key_states.shape[1] != query_states.shape[1]:
+                num_key_value_heads = key_states.shape[1]
+                attn_key_states = repeat_kv(key_states, num_key_value_groups)
+            else:
+                num_key_value_heads = key_states.shape[1]
+                attn_key_states = key_states
+
+            attn_weights = torch.matmul(
+                query_states[..., -self.window_size:, :],
+                attn_key_states.transpose(2, 3),
+            ) / math.sqrt(head_dim)
             mask = torch.full((self.window_size, self.window_size), torch.finfo(attn_weights.dtype).min, device=attn_weights.device)
             mask_cond = torch.arange(mask.size(-1), device=attn_weights.device)
             mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
@@ -53,6 +63,13 @@ class SnapKVCluster():
 
             attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
             attn_weights_sum = attn_weights[:, :, -self.window_size:, : -self.window_size].sum(dim = -2)
+            if num_key_value_heads != num_heads:
+                attn_weights_sum = attn_weights_sum.view(
+                    bsz,
+                    num_key_value_heads,
+                    num_key_value_groups,
+                    q_len - self.window_size,
+                ).mean(dim=2)
             if self.pooling == 'avgpool':
                 attn_cache = F.avg_pool1d(attn_weights_sum, kernel_size = self.kernel_size, padding=self.kernel_size//2, stride=1)
             elif self.pooling == 'maxpool':
